@@ -16,7 +16,7 @@ def run():
 
     # Drop all other columns except what you need
     geo = geo[geo['Property_City'].isin([
-        "Birmingham", "Homewood", "Mountain Brook", "Hoover", "Vestavia Hills", "Fultondale", "Tarrant"
+        "Birmingham", "Homewood", "Mountain Brook", "Vestavia Hills", "Fultondale", "Tarrant", "Pratt City", "Forestdale"
     ])]
     geo = geo[["PARCELID", "AssdValue", "GIS_ACRES", "ValuePerAcre", "geometry"]]
 
