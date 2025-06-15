@@ -6,3 +6,9 @@ jeffco_env
 
 merged_data_clean_bham.geojson
 Jefferson_County_Parcels.geojson
+
+.env
+
+output.geojson
+
+data_clean_extended.geojson

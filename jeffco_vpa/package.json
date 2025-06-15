@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "deck.gl": "^9.1.12",
+    "gzip": "^0.1.0",
     "mapbox-gl": "^3.12.0",
     "maplibre-gl": "^4.7.1",
+    "mapshaper": "^0.6.102",
     "next": "15.3.3",
+    "pg": "^8.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-map-gl": "^7.1.9"

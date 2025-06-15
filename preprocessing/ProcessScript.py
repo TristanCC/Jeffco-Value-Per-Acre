@@ -18,11 +18,12 @@ def run():
     geo = geo[geo['Property_City'].isin([
         "Birmingham", "Homewood", "Mountain Brook", "Vestavia Hills", "Fultondale", "Tarrant", "Pratt City", "Forestdale"
     ])]
-    geo = geo[["PARCELID", "AssdValue", "GIS_ACRES", "ValuePerAcre", "geometry"]]
+    geo = geo[["PARCELID", "AssdValue", "GIS_ACRES", "ValuePerAcre", "PrevParcelTotal"
+    ,"OWNERNAME","PROP_MAIL","ADDR_APR","NbhName","ZIP_MAIL","CITY","DISTRICT","ZONING_BOE","BLDG_IND","Cls","geometry"]]
 
 
     # Optional: Save merged output
-    geo.to_file("merged_data_clean_bham.geojson", driver="GeoJSON")
+    geo.to_file("data_clean_extended.geojson", driver="GeoJSON")
 
     return geo
 
