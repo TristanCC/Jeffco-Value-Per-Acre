@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { Client } from 'pg';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get('page') || '0', 10);
+  const limit = parseInt(searchParams.get('limit') || '10000', 10);
+  const offset = page * limit;
+
   const client = new Client({
     host: 'localhost',
-    port: 5432,
+    port: 5433,
     user: 'postgres',
     password: process.env.PASSWORD,
     database: 'parcels_db',
@@ -24,14 +29,16 @@ export async function GET() {
           )
         )
       ) AS geojson
-      FROM parcels AS t;
-    `);
+      FROM (
+        SELECT * FROM parcels ORDER BY gid LIMIT $1 OFFSET $2
+      ) AS t
+    `, [limit, offset]);
 
     await client.end();
-
     return NextResponse.json(result.rows[0].geojson);
   } catch (err) {
     console.error(err);
     return new NextResponse('Failed to fetch GeoJSON', { status: 500 });
   }
 }
+
