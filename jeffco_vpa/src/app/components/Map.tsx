@@ -61,7 +61,7 @@ const MyMap = () => {
   const [is3D, setIs3D] = useState(true);
   const [selection, setSelection] = useState<string>();
   const [categoryColorMap, setCategoryColorMap] = useState<Record<string, number[]>>({});
-  const [selectedMapProperty, setSelectedMapProperty] = useState<'valueperacre' | 'nbhname'>('valueperacre');
+  const [selectedMapProperty, setSelectedMapProperty] = useState<String>('valueperacre');
 
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: -86.8025,
@@ -116,10 +116,11 @@ const MyMap = () => {
 
   // Generate color map when switching to a categorical view
   useEffect(() => {
-    if (!data || selectedMapProperty !== 'nbhname') return;
+    if (!data || selectedMapProperty === 'valueperacre') return;
 
     const categories = new Set<string>();
-    data.features.forEach(f => categories.add(f.properties.nbhname));
+
+    data.features.forEach(f => categories.add(f.properties[selectedMapProperty]));
 
     const unique = Array.from(categories);
     const colors = unique.map((_, i) => {
@@ -141,6 +142,7 @@ const MyMap = () => {
     stroked: true,
     filled: true,
     onClick: (evt: any) => {
+      console.log(evt.object.properties)
       setSelection(String(evt.object.properties.parcelid));
     },
     updateTriggers: {
@@ -154,8 +156,8 @@ const MyMap = () => {
         return interpolateColor(feature.properties.valueperacre, MIN_VPA, MAX_VPA);
       }
 
-      if (selectedMapProperty === 'nbhname') {
-        const category = feature.properties.nbhname;
+      else {
+        const category = feature.properties[selectedMapProperty];
         return categoryColorMap[category] || [150, 150, 150, 150];
       }
 
@@ -175,15 +177,16 @@ const MyMap = () => {
   return (
     <div onContextMenu={(evt) => evt.preventDefault()}>
       {/* UI Controls */}
-      <div className='fixed top-4 left-4 z-50 bg-white p-3 rounded shadow-md text-black'>
+      <div className='fixed top-4 right-4 z-50 bg-white p-3 rounded shadow-md text-black'>
         <div className="mb-2">
           <label className="mr-2">Map Mode:</label>
           <select
             value={selectedMapProperty}
-            onChange={(e) => setSelectedMapProperty(e.target.value as 'valueperacre' | 'nbhname')}
+            onChange={(e) => {setSelectedMapProperty(e.target.value)}}
           >
             <option value="valueperacre">Value per Acre</option>
             <option value="nbhname">Neighborhood</option>
+            <option value="cls">Zoning Class</option>
           </select>
         </div>
         <div className="flex items-center gap-2">
