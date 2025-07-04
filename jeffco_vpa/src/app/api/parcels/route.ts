@@ -7,6 +7,11 @@ export async function GET(req: Request) {
   const limit = parseInt(searchParams.get('limit') || '10000', 10);
   const offset = page * limit;
 
+  const minLng = parseFloat(searchParams.get('minLng') || '-180');
+  const minLat = parseFloat(searchParams.get('minLat') || '-90');
+  const maxLng = parseFloat(searchParams.get('maxLng') || '180');
+  const maxLat = parseFloat(searchParams.get('maxLat') || '90');
+
   const client = new Client({
     host: 'localhost',
     port: 5433,
@@ -30,9 +35,12 @@ export async function GET(req: Request) {
         )
       ) AS geojson
       FROM (
-        SELECT * FROM parcels ORDER BY gid LIMIT $1 OFFSET $2
+        SELECT * FROM parcels
+        WHERE geom && ST_MakeEnvelope($1, $2, $3, $4, 4326)
+        ORDER BY gid
+        LIMIT $5 OFFSET $6
       ) AS t
-    `, [limit, offset]);
+    `, [minLng, minLat, maxLng, maxLat, limit, offset]);
 
     await client.end();
     return NextResponse.json(result.rows[0].geojson);
@@ -41,4 +49,3 @@ export async function GET(req: Request) {
     return new NextResponse('Failed to fetch GeoJSON', { status: 500 });
   }
 }
-

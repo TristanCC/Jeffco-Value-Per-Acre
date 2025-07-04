@@ -4,7 +4,8 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import { GeoJsonLayer } from '@deck.gl/layers';
 import maplibregl from 'maplibre-gl';
-import { Map, ViewStateChangeEvent, MapViewState } from 'react-map-gl';
+import { Map, ViewStateChangeEvent, MapViewState } from 'react-map-gl'; 
+
 
 // Value bounds
 const MAX_VPA = 18270386.920980927;
@@ -59,9 +60,11 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 const MyMap = () => {
   const [data, setData] = useState<any>(null);
   const [is3D, setIs3D] = useState(true);
+  const [isParking, setIsParking] = useState(false)
   const [selection, setSelection] = useState<string>();
   const [categoryColorMap, setCategoryColorMap] = useState<Record<string, number[]>>({});
-  const [selectedMapProperty, setSelectedMapProperty] = useState<String>('valueperacre');
+  const [selectedMapProperty, setSelectedMapProperty] = useState<string>('valueperacre');
+  const [parkingData, setParkingData] = useState<any>(null)
 
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: -86.8025,
@@ -73,6 +76,7 @@ const MyMap = () => {
   });
 
   useEffect(() => {
+
     const fetchAllChunks = async () => {
       let allFeatures = [];
       let page = 0;
@@ -80,6 +84,7 @@ const MyMap = () => {
 
       while (true) {
         const res = await fetch(`/api/parcels?page=${page}&limit=${limit}`);
+
         if (!res.ok) {
           console.error(`Failed to fetch page ${page}`);
           break;
@@ -94,16 +99,24 @@ const MyMap = () => {
         page++;
       }
 
-      setData({
-        type: 'FeatureCollection',
-        features: allFeatures,
-      });
-
-      console.log('Loaded features:', allFeatures.length);
+      if (allFeatures.length > 0) {
+        setData({
+          type: 'FeatureCollection',
+          features: allFeatures
+        });
+        console.log('Loaded features:', allFeatures.length);
+      }
     };
 
     fetchAllChunks().catch(console.error);
-  }, []);
+  }, []); // Only run once on mount
+
+  useEffect(() => {
+    fetch('/Parking.geojson')
+    .then(res => res.json())
+    .then(setParkingData)
+    .catch(err => console.error('Failed to load parking.geojson:', err));
+  }, [])
 
   const handleViewStateChange = useCallback((e: ViewStateChangeEvent) => {
     const v = e.viewState;
@@ -135,6 +148,17 @@ const MyMap = () => {
 
     setCategoryColorMap(map);
   }, [data, selectedMapProperty]);
+
+  const parkingLayer = new GeoJsonLayer({
+  id: 'ParkingLayer',
+  data: parkingData || "",
+  stroked: false,
+  filled: true,
+  getFillColor: [30, 144, 255, 150], // Dodger blue, semi-transparent
+  getLineColor: [0, 0, 0, 100],
+  pickable: true,
+  autoHighlight: true,
+});
 
   const layer = useMemo(() => new GeoJsonLayer({
     id: 'GeoJsonLayer',
@@ -187,6 +211,7 @@ const MyMap = () => {
             <option value="valueperacre">Value per Acre</option>
             <option value="nbhname">Neighborhood</option>
             <option value="cls">Zoning Class</option>
+            <option value="ownername">Owners</option>
           </select>
         </div>
         <div className="flex items-center gap-2">
@@ -195,6 +220,18 @@ const MyMap = () => {
             type='checkbox'
             checked={is3D}
             onChange={() => setIs3D(!is3D)}
+          />
+          <label>Fill</label>
+          <input
+            type='checkbox'
+            checked={is3D}
+            onChange={() => setIs3D(!is3D)}
+          />
+          <label>Parking</label>
+          <input
+            type='checkbox'
+            checked={isParking}
+            onChange={() => setIsParking(!isParking)}
           />
         </div>
       </div>
@@ -208,7 +245,7 @@ const MyMap = () => {
             doubleClickZoom: false,
             dragPan: true
           }}
-          layers={[layer]}
+          layers={[layer, ...(parkingData && isParking ? [parkingLayer] : [])]}
         >
           <Map
             reuseMaps
