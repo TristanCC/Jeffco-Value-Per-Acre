@@ -4,8 +4,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { DeckGL } from '@deck.gl/react';
 import { GeoJsonLayer } from '@deck.gl/layers';
 import maplibregl from 'maplibre-gl';
-import { Map, ViewStateChangeEvent, MapViewState } from 'react-map-gl'; 
-
+import { Map, ViewStateChangeEvent, MapViewState } from 'react-map-gl';
 
 // Value bounds
 const MAX_VPA = 18270386.920980927;
@@ -17,10 +16,8 @@ const MAX_LAT = 33.8;
 const MIN_LNG = -87.1;
 const MAX_LNG = -86.5;
 
-// Clamp helper
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
-// Color scale function (heatmap)
 function interpolateColor(value: number, min: number, max: number): [number, number, number, number] {
   const logMin = Math.log10(min + 1);
   const logMax = Math.log10(max + 1);
@@ -46,7 +43,6 @@ function interpolateColor(value: number, min: number, max: number): [number, num
   return [r, g, b, 200];
 }
 
-// HSL to RGB
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   s /= 100;
   l /= 100;
@@ -57,14 +53,20 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   return [f(0), f(8), f(4)];
 }
 
+function isAlabamaPower(owner: string | undefined | null): boolean {
+  if (!owner) return false;
+  return owner.toUpperCase().includes("ALABAMA POWER");
+}
+
 const MyMap = () => {
   const [data, setData] = useState<any>(null);
+  const [parkingData, setParkingData] = useState<any>(null);
   const [is3D, setIs3D] = useState(true);
-  const [isParking, setIsParking] = useState(false)
-  const [selection, setSelection] = useState<string>();
+  const [isParking, setIsParking] = useState(false);
+
+  const [selection, setSelection] = useState({});
   const [categoryColorMap, setCategoryColorMap] = useState<Record<string, number[]>>({});
   const [selectedMapProperty, setSelectedMapProperty] = useState<string>('valueperacre');
-  const [parkingData, setParkingData] = useState<any>(null)
 
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: -86.8025,
@@ -76,7 +78,6 @@ const MyMap = () => {
   });
 
   useEffect(() => {
-
     const fetchAllChunks = async () => {
       let allFeatures = [];
       let page = 0;
@@ -84,15 +85,10 @@ const MyMap = () => {
 
       while (true) {
         const res = await fetch(`/api/parcels?page=${page}&limit=${limit}`);
-
-        if (!res.ok) {
-          console.error(`Failed to fetch page ${page}`);
-          break;
-        }
+        if (!res.ok) break;
 
         const json = await res.json();
         const features = json.features;
-
         if (!features || !features.length) break;
 
         allFeatures.push(...features);
@@ -104,37 +100,24 @@ const MyMap = () => {
           type: 'FeatureCollection',
           features: allFeatures
         });
-        console.log('Loaded features:', allFeatures.length);
       }
     };
 
     fetchAllChunks().catch(console.error);
-  }, []); // Only run once on mount
+  }, []);
 
   useEffect(() => {
     fetch('/Parking.geojson')
-    .then(res => res.json())
-    .then(setParkingData)
-    .catch(err => console.error('Failed to load parking.geojson:', err));
-  }, [])
-
-  const handleViewStateChange = useCallback((e: ViewStateChangeEvent) => {
-    const v = e.viewState;
-    setViewState({
-      ...v,
-      latitude: clamp(v.latitude, MIN_LAT, MAX_LAT),
-      longitude: clamp(v.longitude, MIN_LNG, MAX_LNG)
-    });
+      .then(res => res.json())
+      .then(setParkingData)
+      .catch(err => console.error('Failed to load parking.geojson:', err));
   }, []);
 
-  // Generate color map when switching to a categorical view
   useEffect(() => {
     if (!data || selectedMapProperty === 'valueperacre') return;
 
     const categories = new Set<string>();
-
     data.features.forEach(f => categories.add(f.properties[selectedMapProperty]));
-
     const unique = Array.from(categories);
     const colors = unique.map((_, i) => {
       const hue = (i * 137.5) % 360;
@@ -149,43 +132,50 @@ const MyMap = () => {
     setCategoryColorMap(map);
   }, [data, selectedMapProperty]);
 
-  const parkingLayer = new GeoJsonLayer({
-  id: 'ParkingLayer',
-  data: parkingData || "",
-  stroked: false,
-  filled: true,
-  getFillColor: [30, 144, 255, 150], // Dodger blue, semi-transparent
-  getLineColor: [0, 0, 0, 100],
-  pickable: true,
-  autoHighlight: true,
-});
+  const handleViewStateChange = useCallback((e: ViewStateChangeEvent) => {
+    const v = e.viewState;
+    setViewState({
+      ...v,
+      latitude: clamp(v.latitude, MIN_LAT, MAX_LAT),
+      longitude: clamp(v.longitude, MIN_LNG, MAX_LNG)
+    });
+  }, []);
 
-  const layer = useMemo(() => new GeoJsonLayer({
+  const parkingLayer = new GeoJsonLayer({
+    id: 'ParkingLayer',
+    data: parkingData || "",
+    stroked: false,
+    filled: true,
+    getFillColor: [30, 144, 255, 150],
+    getLineColor: [0, 0, 0, 100],
+    pickable: true,
+    autoHighlight: true,
+  });
+
+  const parcelLayer = useMemo(() => new GeoJsonLayer({
     id: 'GeoJsonLayer',
     data: data || "",
     stroked: true,
     filled: true,
     onClick: (evt: any) => {
-      console.log(evt.object.properties)
-      setSelection(String(evt.object.properties.parcelid));
+      console.log(evt.object.properties);
+      setSelection(evt.object.properties);
     },
     updateTriggers: {
       getFillColor: [selection, selectedMapProperty, categoryColorMap]
     },
     getFillColor: (feature: any) => {
-      const isSelected = selection === String(feature.properties.parcelid);
+      const isSelected = feature.properties.parcelid === selection?.parcelid;
+      const ownerName = feature.properties.ownername;
+
       if (isSelected) return [255, 255, 255, 255];
 
       if (selectedMapProperty === 'valueperacre') {
         return interpolateColor(feature.properties.valueperacre, MIN_VPA, MAX_VPA);
       }
 
-      else {
-        const category = feature.properties[selectedMapProperty];
-        return categoryColorMap[category] || [150, 150, 150, 150];
-      }
-
-      return [100, 100, 100, 150];
+      const category = feature.properties[selectedMapProperty];
+      return categoryColorMap[category] || [150, 150, 150, 150];
     },
     getLineColor: [0, 0, 0, 255],
     lineWidthMinPixels: 1,
@@ -198,15 +188,21 @@ const MyMap = () => {
     extruded: is3D,
   }), [data, selection, selectedMapProperty, categoryColorMap, is3D]);
 
+  const handleDropdown = (e) => {
+
+    if(["valueperacre", "nbhname", "cls", "ownername"].includes(e.target.value)) {
+      setSelectedMapProperty(e.target.value)
+    }
+  }
+
   return (
     <div onContextMenu={(evt) => evt.preventDefault()}>
-      {/* UI Controls */}
       <div className='fixed top-4 right-4 z-50 bg-white p-3 rounded shadow-md text-black'>
         <div className="mb-2">
           <label className="mr-2">Map Mode:</label>
           <select
             value={selectedMapProperty}
-            onChange={(e) => {setSelectedMapProperty(e.target.value)}}
+            onChange={(e) => handleDropdown(e)}
           >
             <option value="valueperacre">Value per Acre</option>
             <option value="nbhname">Neighborhood</option>
@@ -216,24 +212,20 @@ const MyMap = () => {
         </div>
         <div className="flex items-center gap-2">
           <label>3D</label>
-          <input
-            type='checkbox'
-            checked={is3D}
-            onChange={() => setIs3D(!is3D)}
-          />
-          <label>Fill</label>
-          <input
-            type='checkbox'
-            checked={is3D}
-            onChange={() => setIs3D(!is3D)}
-          />
+          <input type='checkbox' checked={is3D} onChange={() => {setIs3D(!is3D); setIsParking(false)}} />
           <label>Parking</label>
-          <input
-            type='checkbox'
-            checked={isParking}
-            onChange={() => setIsParking(!isParking)}
-          />
+          <input type='checkbox' disabled={is3D} checked={isParking} onChange={() => setIsParking(!isParking)} />
         </div>
+        {selection && (
+          <div className='flex flex-col justify-center items-center gap-2'>
+            <div>
+              {Object.keys(selection).map(key => {
+                return <h1 key={key}>{key}: {selection[key]}</h1>
+              })}
+            </div>
+            <button className='p-1 border-1' onClick={() => setSelection(null)}>Unselect</button>
+          </div>
+        )}
       </div>
 
       {data && (
@@ -245,7 +237,10 @@ const MyMap = () => {
             doubleClickZoom: false,
             dragPan: true
           }}
-          layers={[layer, ...(parkingData && isParking ? [parkingLayer] : [])]}
+          layers={[
+            parcelLayer,
+            ...(parkingData && isParking ? [parkingLayer] : [])
+          ]}
         >
           <Map
             reuseMaps
